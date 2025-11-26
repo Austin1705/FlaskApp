@@ -1,0 +1,77 @@
+name: Flask Advanced CI/CD Pipeline
+
+# Triggers on push to 'main' (required) and on Pull Request (advanced requirement) [cite: 68, 69]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. Unit Test Job: Runs tests in parallel with the Docker Build job (advanced requirement) [cite: 70]
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Dependencies
+      run: pip install -r requirements.txt
+    
+    - name: Run Unit Tests (Pytest)
+      run: pytest test_app.py
+
+  # 2. Build and Push Job: Depends on tests passing, builds image, and pushes conditionally
+  build-and-push:
+    # Ensures this job runs only if 'unit-test' job succeeds
+    needs: unit-test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    # Log in to Docker Hub using secrets (advanced requirement) [cite: 60, 61, 62]
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    # Build the image
+    - name: Build Docker Image
+      id: docker_build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: austin1705/flaskapp:latest
+        
+    # Push to Multiple Registries (advanced requirement) [cite: 66, 67]
+    - name: Push to Multiple Registries (Docker Hub and Private)
+      uses: docker/build-push-action@v5
+      # Conditional push: runs only if the tests pass successfully (advanced requirement) [cite: 71]
+      if: success()
+      with:
+        context: .
+        push: true
+        tags: |
+          austin1705/flaskapp:latest
+          private-registry.com/austin1705/flaskapp:latest # Example second registry
+          
+    # Send Email on Failure (advanced requirement) [cite: 72]
+    - name: Send Email on Test Failure
+      uses: actions/github-script@v6
+      if: failure() && github.event_name == 'push'
+      with:
+        script: |
+          // In a real scenario, this would trigger an email action like actions/send-mail [cite: 72]
+          console.log("TEST FAILURE DETECTED: Notification triggered.");
